@@ -207,7 +207,7 @@ function parseTimeToSeconds(timeStr: string): number {
 function parseTimingsFile(content: string): TrackSegment[] {
   const lines = content.split('\n').filter(line => line.trim().length > 0);
   const segments: TrackSegment[] = [];
-  
+
   for (const line of lines) {
     // Format: "MM:SS - Artist Name - COLOR"
     const parts = line.split(' - ');
@@ -215,17 +215,17 @@ function parseTimingsFile(content: string): TrackSegment[] {
       const timeStr = parts[0].trim();
       const artist = parts[1].trim();
       const colorName = parts[2].trim().toUpperCase();
-      
+
       const startSec = parseTimeToSeconds(timeStr);
       const color = COLOR_MAP[colorName] || '#666666';
-      
+
       segments.push({ startSec, artist, color });
     }
   }
-  
+
   // Sort by start time
   segments.sort((a, b) => a.startSec - b.startSec);
-  
+
   return segments;
 }
 
@@ -251,20 +251,20 @@ async function loadTrackSegments(trackId: string): Promise<TrackSegment[] | null
   if (segmentsCache[trackId] !== undefined) {
     return segmentsCache[trackId];
   }
-  
+
   // Check if already loading
   if (trackId in loadingPromises) {
     return loadingPromises[trackId];
   }
-  
+
   const folderPath = TRACK_FOLDER_MAP[trackId];
   if (!folderPath) {
     segmentsCache[trackId] = null;
     return null;
   }
-  
+
   const timingsUrl = `${folderPath}/тайминги.txt`;
-  
+
   loadingPromises[trackId] = fetch(timingsUrl)
     .then(response => {
       if (!response.ok) {
@@ -284,32 +284,32 @@ async function loadTrackSegments(trackId: string): Promise<TrackSegment[] | null
     .finally(() => {
       delete loadingPromises[trackId];
     });
-  
+
   return loadingPromises[trackId];
 }
 
 // Hook to use track segments
 function useTrackSegments(trackId: string | null): TrackSegment[] | null {
   const [segments, setSegments] = useState<TrackSegment[] | null>(null);
-  
+
   useEffect(() => {
     if (!trackId) {
       setSegments(null);
       return;
     }
-    
+
     // Check cache first (sync)
     if (segmentsCache[trackId] !== undefined) {
       setSegments(segmentsCache[trackId]);
       return;
     }
-    
+
     // Load async
     loadTrackSegments(trackId).then(segs => {
       setSegments(segs);
     });
   }, [trackId]);
-  
+
   return segments;
 }
 
@@ -562,7 +562,7 @@ interface PlayerCtx {
   playerVis: PlayerVisibility;
   showQueue: boolean;
   excursionRemaining: number;
-  
+
   // Fullscreen player
   isFullscreen: boolean;
   setIsFullscreen: (v: boolean) => void;
@@ -613,7 +613,7 @@ function PlayerProvider({ children }: { children: ReactNode }) {
   const [playerVis, setPlayerVis] = useState<PlayerVisibility>('hidden');
   const [showQueue, setShowQueue] = useState(false);
   const [excursionRemaining, setExcursionRemaining] = useState(0);
-  
+
   // Fullscreen player state
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -647,19 +647,19 @@ function PlayerProvider({ children }: { children: ReactNode }) {
   const setupAudioAnalyser = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || sourceRef.current) return; // Already connected
-    
+
     try {
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       }
       const ctx = audioContextRef.current;
-      
+
       if (!analyserRef.current) {
         analyserRef.current = ctx.createAnalyser();
         analyserRef.current.fftSize = 256;
         analyserRef.current.smoothingTimeConstant = 0.8;
       }
-      
+
       if (!sourceRef.current) {
         sourceRef.current = ctx.createMediaElementSource(audio);
         sourceRef.current.connect(analyserRef.current);
@@ -685,11 +685,11 @@ function PlayerProvider({ children }: { children: ReactNode }) {
       return;
     }
     lastAudioLevelUpdate.current = now;
-    
+
     const bufferLength = analyserRef.current.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
     analyserRef.current.getByteFrequencyData(dataArray);
-    
+
     // Calculate average level (focus on bass/mid frequencies for punch)
     let sum = 0;
     const relevantBins = Math.min(bufferLength, 32); // Focus on lower frequencies
@@ -697,9 +697,9 @@ function PlayerProvider({ children }: { children: ReactNode }) {
       sum += dataArray[i];
     }
     const average = sum / relevantBins / 255; // Normalize to 0-1
-    
+
     setAudioLevel(average);
-    
+
     animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
   }, [isPlaying, isFullscreen]);
 
@@ -715,7 +715,7 @@ function PlayerProvider({ children }: { children: ReactNode }) {
       }
       setAudioLevel(0);
     }
-    
+
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -731,11 +731,11 @@ function PlayerProvider({ children }: { children: ReactNode }) {
     }
     const audio = audioRef.current;
 
-    // Throttled time update to reduce re-renders
+    // Throttled time update to reduce re-renders (native timeupdate fires ~4Hz)
     let lastTimeUpdateCall = 0;
     const onTimeUpdate = () => {
       const now = performance.now();
-      // Throttle to ~10Hz for progress updates (every 100ms)
+      // Throttle to max ~10Hz for progress updates (every 100ms)
       if (now - lastTimeUpdateCall < 100) return;
       lastTimeUpdateCall = now;
 
@@ -802,25 +802,18 @@ function PlayerProvider({ children }: { children: ReactNode }) {
     }
     const q = queueRef.current;
     const idx = indexRef.current;
-    const order = orderRef.current;
-
-    if (order === 'shuffle') {
-      // Simple shuffle — pick any random track (including podcast)
-      if (q.length <= 1) return;
-      let nextIdx: number;
-      do { nextIdx = Math.floor(Math.random() * q.length); } while (nextIdx === idx);
-      loadAndPlay(nextIdx);
-    } else {
-      // Sequential — just go to next
-      const nextIdx = idx + 1;
-      if (nextIdx < q.length) loadAndPlay(nextIdx);
-      else audioRef.current?.pause();
-    }
+    
+    // Always use sequential logic, because the queue is shuffled in the state.
+    // This ensures playback follows the visible list order.
+    const nextIdx = idx + 1;
+    if (nextIdx < q.length) loadAndPlay(nextIdx);
+    else audioRef.current?.pause();
   }
 
   function loadAndPlay(index: number) {
     const item = queueRef.current[index];
     if (!item || !audioRef.current) return;
+
     excursionAdvancingRef.current = false;
     indexRef.current = index;
     setCurrentQueueIndex(index);
@@ -900,15 +893,10 @@ function PlayerProvider({ children }: { children: ReactNode }) {
   function next() {
     const q = queueRef.current;
     const idx = indexRef.current;
-    if (orderRef.current === 'shuffle') {
-      // Shuffle — any random track (podcast included)
-      if (q.length <= 1) return;
-      let n: number;
-      do { n = Math.floor(Math.random() * q.length); } while (n === idx);
-      loadAndPlay(n);
-    } else {
-      if (idx + 1 < q.length) loadAndPlay(idx + 1);
-    }
+    
+    // Always use sequential logic, because the queue is shuffled in the state.
+    // This ensures playback follows the visible list order.
+    if (idx + 1 < q.length) loadAndPlay(idx + 1);
   }
 
   function prev() {
@@ -929,24 +917,24 @@ function PlayerProvider({ children }: { children: ReactNode }) {
   function setOrder(newOrder: PlaybackOrder) {
     // Get current track ID BEFORE any state changes
     const currentTrackId = queueRef.current[indexRef.current]?.id;
-    
+
     orderRef.current = newOrder;
     setPlaybackOrder(newOrder);
-    
+
     if (newOrder === 'shuffle') {
       // Shuffle: put current track at index 0, shuffle the rest
       const currentTrack = queueRef.current.find(t => t.id === currentTrackId);
       const otherTracks = queueRef.current.filter(t => t.id !== currentTrackId);
-      
+
       // Fisher-Yates shuffle
       for (let i = otherTracks.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [otherTracks[i], otherTracks[j]] = [otherTracks[j], otherTracks[i]];
       }
-      
+
       const newQueue = currentTrack ? [currentTrack, ...otherTracks] : [...otherTracks];
       const newIndex = currentTrack ? 0 : 0;
-      
+
       queueRef.current = newQueue;
       indexRef.current = newIndex;
       setQueue(newQueue);
@@ -957,7 +945,7 @@ function PlayerProvider({ children }: { children: ReactNode }) {
       const newIndex = currentTrackId 
         ? newQueue.findIndex(t => t.id === currentTrackId)
         : 0;
-      
+
       queueRef.current = newQueue;
       indexRef.current = newIndex >= 0 ? newIndex : 0;
       setQueue(newQueue);
@@ -1143,134 +1131,134 @@ function QueuePanel() {
         <div className="queue-panel-inner" ref={innerRef}>
           {/* Header */}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div className="queue-title">
-            <span className="queue-title-text" style={GRAFFITI}>ОЧЕРЕДЬ</span>
-          </div>
+            <div className="queue-title">
+              <span className="queue-title-text" style={GRAFFITI}>ОЧЕРЕДЬ</span>
+            </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setOrder('sequential')}
-              className={`queue-mode-btn ${playbackOrder === 'sequential' ? 'active' : ''}`}
-              style={GRAFFITI}
-              title="Играть по порядку"
-            >
-              <IconSequential />
-              <span className="hidden sm:inline">Порядок</span>
-            </button>
-            <button
-              onClick={() => setOrder('shuffle')}
-              className={`queue-mode-btn ${playbackOrder === 'shuffle' ? 'active' : ''}`}
-              style={GRAFFITI}
-              title="Играть в перемешку"
-            >
-              <IconShuffle />
-              <span className="hidden sm:inline">Микс</span>
-            </button>
-            <button
-              onClick={() => setExcursionOn(!excursionOn)}
-              className={`queue-mode-btn ${excursionOn ? 'active' : ''}`}
-              style={GRAFFITI}
-              title={excursionOn ? 'Экскурсия: ВКЛ (по 10 секунд)' : 'Экскурсия: ВЫКЛ'}
-            >
-              <IconExcursion />
-              <span className="hidden sm:inline">10s</span>
-            </button>
-            <button
-              onClick={() => setAutoAdvance(!autoAdvance)}
-              className={`queue-mode-btn ${autoAdvance ? 'active' : 'opacity-40'}`}
-              title={autoAdvance ? 'Авто-переключение: ВКЛ' : 'Авто-переключение: ВЫКЛ'}
-              style={GRAFFITI}
-            >
-              {autoAdvance ? <IconAutoOn /> : <IconAutoOff />}
-              <span className="hidden sm:inline">{autoAdvance ? 'Авто' : 'Стоп'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Queue list */}
-        <div className="queue-list">
-          {queue.map((item, i) => {
-            const isCurrent = i === currentQueueIndex;
-            const isPast = i < currentQueueIndex;
-            const canDrag = !isPast && !isCurrent;
-            const typeIcon = item.type === 'podcast' ? '🎙️' : item.type === 'track' ? '🔥' : '💀';
-            const isDragging = draggedIdx === i;
-            const isDragOver = dragOverIdx === i && draggedIdx !== i;
-
-            return (
-              <div
-                key={item.id + '-' + i}
-                className={`queue-item ${isCurrent ? 'is-current' : ''} ${isPast ? 'is-past' : ''} ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'is-drag-over' : ''}`}
-                style={{ animationDelay: `${Math.min(i * 0.03, 0.9)}s` }}
-                draggable={canDrag}
-                onDragStart={(e) => {
-                  if (!canDrag) return;
-                  setDraggedIdx(i);
-                  e.dataTransfer.effectAllowed = 'move';
-                  e.dataTransfer.setData('text/plain', String(i));
-                }}
-                onDragEnd={() => {
-                  setDraggedIdx(null);
-                  setDragOverIdx(null);
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (draggedIdx !== null && i > currentQueueIndex && i !== draggedIdx) {
-                    setDragOverIdx(i);
-                  }
-                }}
-                onDragLeave={() => {
-                  if (dragOverIdx === i) setDragOverIdx(null);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (draggedIdx !== null && i > currentQueueIndex && draggedIdx !== i) {
-                    reorderQueue(draggedIdx, i);
-                  }
-                  setDraggedIdx(null);
-                  setDragOverIdx(null);
-                }}
-                onTouchStart={(e) => {
-                  if (!canDrag) return;
-                  touchStartY.current = e.touches[0].clientY;
-                  touchCurrentEl.current = e.currentTarget as HTMLElement;
-                }}
-                onTouchMove={() => {
-                  if (touchStartY.current === null || draggedIdx === null) return;
-                  // Visual feedback handled by CSS
-                }}
-                onTouchEnd={() => {
-                  touchStartY.current = null;
-                  touchCurrentEl.current = null;
-                }}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setOrder('sequential')}
+                className={`queue-mode-btn ${playbackOrder === 'sequential' ? 'active' : ''}`}
+                style={GRAFFITI}
+                title="Играть по порядку"
               >
-                {/* Drag handle for draggable items */}
-                {canDrag && (
-                  <span className="queue-drag-handle" title="Перетащи для перестановки">
-                    ⋮⋮
-                  </span>
-                )}
-                <button
-                  onClick={() => playItemById(item.id)}
-                  className="flex-1 flex items-center gap-2 text-left min-w-0 cursor-pointer"
+                <IconSequential />
+                <span className="hidden sm:inline">Порядок</span>
+              </button>
+              <button
+                onClick={() => setOrder('shuffle')}
+                className={`queue-mode-btn ${playbackOrder === 'shuffle' ? 'active' : ''}`}
+                style={GRAFFITI}
+                title="Играть в перемешку"
+              >
+                <IconShuffle />
+                <span className="hidden sm:inline">Микс</span>
+              </button>
+              <button
+                onClick={() => setExcursionOn(!excursionOn)}
+                className={`queue-mode-btn ${excursionOn ? 'active' : ''}`}
+                style={GRAFFITI}
+                title={excursionOn ? 'Экскурсия: ВКЛ (по 10 секунд)' : 'Экскурсия: ВЫКЛ'}
+              >
+                <IconExcursion />
+                <span className="hidden sm:inline">10s</span>
+              </button>
+              <button
+                onClick={() => setAutoAdvance(!autoAdvance)}
+                className={`queue-mode-btn ${autoAdvance ? 'active' : 'opacity-40'}`}
+                title={autoAdvance ? 'Авто-переключение: ВКЛ' : 'Авто-переключение: ВЫКЛ'}
+                style={GRAFFITI}
+              >
+                {autoAdvance ? <IconAutoOn /> : <IconAutoOff />}
+                <span className="hidden sm:inline">{autoAdvance ? 'Авто' : 'Стоп'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Queue list */}
+          <div className="queue-list">
+            {queue.map((item, i) => {
+              const isCurrent = i === currentQueueIndex;
+              const isPast = i < currentQueueIndex;
+              const canDrag = !isPast && !isCurrent;
+              const typeIcon = item.type === 'podcast' ? '🎙️' : item.type === 'track' ? '🎵' : '📼';
+              const isDragging = draggedIdx === i;
+              const isDragOver = dragOverIdx === i && draggedIdx !== i;
+
+              return (
+                <div
+                  key={item.id + '-' + i}
+                  className={`queue-item ${isCurrent ? 'is-current' : ''} ${isPast ? 'is-past' : ''} ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'is-drag-over' : ''}`}
+                  style={{ animationDelay: `${Math.min(i * 0.03, 0.9)}s` }}
+                  draggable={canDrag}
+                  onDragStart={(e) => {
+                    if (!canDrag) return;
+                    setDraggedIdx(i);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(i));
+                  }}
+                  onDragEnd={() => {
+                    setDraggedIdx(null);
+                    setDragOverIdx(null);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedIdx !== null && i > currentQueueIndex && i !== draggedIdx) {
+                      setDragOverIdx(i);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverIdx === i) setDragOverIdx(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedIdx !== null && i > currentQueueIndex && draggedIdx !== i) {
+                      reorderQueue(draggedIdx, i);
+                    }
+                    setDraggedIdx(null);
+                    setDragOverIdx(null);
+                  }}
+                  onTouchStart={(e) => {
+                    if (!canDrag) return;
+                    touchStartY.current = e.touches[0].clientY;
+                    touchCurrentEl.current = e.currentTarget as HTMLElement;
+                  }}
+                  onTouchMove={() => {
+                    if (touchStartY.current === null || draggedIdx === null) return;
+                    // Visual feedback handled by CSS
+                  }}
+                  onTouchEnd={() => {
+                    touchStartY.current = null;
+                    touchCurrentEl.current = null;
+                  }}
                 >
-                  <span className="text-xs flex-shrink-0 w-5 text-right opacity-50">
-                    {isCurrent && currentItem ? '▶' : i + 1}
-                  </span>
-                  <span className="text-xs flex-shrink-0">{typeIcon}</span>
-                  <span className="text-sm truncate">{item.name}</span>
-                </button>
-                {canDrag && (
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => moveQueueItem(i, 'up')} className="queue-arrow-btn" title="Вверх">▲</button>
-                    <button onClick={() => moveQueueItem(i, 'down')} className="queue-arrow-btn" title="Вниз">▼</button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  {/* Drag handle for draggable items */}
+                  {canDrag && (
+                    <span className="queue-drag-handle" title="Перетащи для перестановки">
+                      ⋮⋮
+                    </span>
+                  )}
+                  <button
+                    onClick={() => playItemById(item.id)}
+                    className="flex-1 flex items-center gap-2 text-left min-w-0 cursor-pointer"
+                  >
+                    <span className="text-xs flex-shrink-0 w-5 text-right opacity-50">
+                      {isCurrent && currentItem ? '▶' : i + 1}
+                    </span>
+                    <span className="text-xs flex-shrink-0">{typeIcon}</span>
+                    <span className="text-sm truncate">{item.name}</span>
+                  </button>
+                  {canDrag && (
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button onClick={() => moveQueueItem(i, 'up')} className="queue-arrow-btn" title="Вверх">▲</button>
+                      <button onClick={() => moveQueueItem(i, 'down')} className="queue-arrow-btn" title="Вниз">▼</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
       </div>
     </div>
   );
@@ -1314,38 +1302,38 @@ function GlobalPlayerBar() {
     <>
       <QueuePanel />
 
-              <div className={`global-player ${animClass} ${isPlaying ? 'is-playing' : ''} ${isGlitchCore ? 'glitch-core-mode' : ''}`}>
+      <div className={`global-player ${animClass} ${isPlaying ? 'is-playing' : ''} ${isGlitchCore ? 'glitch-core-mode' : ''}`}>
         {/* Glitch Core overlay scanlines */}
         {isGlitchCore && <div className="glitch-scanlines" />}
 
-              {/* Top progress bar */}
-      {segments ? (
-        <SegmentedGlobalProgressBar segments={segments} />
-      ) : (
-        <div className="player-progress-container">
-          {/* Background track */}
-          <div className="player-progress-track" />
-          {/* Fill (fire texture) */}
-          <div className="player-progress-fill" style={{ width: `${progress}%` }} />
-          {/* Thumb indicator */}
-          <div className="player-progress-thumb" style={{ left: `${progress}%` }} />
+        {/* Top progress bar */}
+        {segments ? (
+          <SegmentedGlobalProgressBar segments={segments} />
+        ) : (
+          <div className="player-progress-container">
+            {/* Background track */}
+            <div className="player-progress-track" />
+            {/* Fill (fire texture) */}
+            <div className="player-progress-fill" style={{ width: `${progress}%` }} />
+            {/* Thumb indicator */}
+            <div className="player-progress-thumb" style={{ left: `${progress}%` }} />
 
-          {/* Keyboard seek flash (+5/-5) */}
-          <SeekFlashBadge leftPct={progress} />
+            {/* Keyboard seek flash (+5/-5) */}
+            <SeekFlashBadge leftPct={progress} />
 
-          {/* Invisible range input on top for interaction */}
-          <input
-            ref={progressRef}
-            type="range"
-            min="0"
-            max="100"
-            step="0.1"
-            value={progress}
-            onChange={handleSeek}
-            className="player-progress-range"
-          />
-        </div>
-      )}
+            {/* Invisible range input on top for interaction */}
+            <input
+              ref={progressRef}
+              type="range"
+              min="0"
+              max="100"
+              step="0.1"
+              value={progress}
+              onChange={handleSeek}
+              className="player-progress-range"
+            />
+          </div>
+        )}
 
 
 
@@ -1365,7 +1353,7 @@ function GlobalPlayerBar() {
             )}
             {!currentItem?.cover && (
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded flex-shrink-0 border border-[#ff0033]/20 bg-[#ff0033]/10 flex items-center justify-center text-lg">
-                {currentItem?.type === 'podcast' ? '🎙️' : currentItem?.type === 'demo' ? '💀' : '🔥'}
+                {currentItem?.type === 'podcast' ? '🎙️' : currentItem?.type === 'demo' ? '📼' : '🎵'}
               </div>
             )}
             <div className="min-w-0 flex-1 text-left">
@@ -1509,21 +1497,21 @@ function SegmentedGlobalProgressBar({ segments }: { segments: TrackSegment[] }) 
   // Update artist display when segment changes
   useEffect(() => {
     const newArtist = currentSeg.artist;
-    
+
     // Don't update if already transitioning or same artist
     if (transitioningRef.current || newArtist === displayedArtist) return;
-    
+
     // Start transition
     setPrevArtist(displayedArtist);
     setTransitioning(true);
     transitioningRef.current = true;
-    
+
     const t = window.setTimeout(() => {
       setDisplayedArtist(newArtist);
       setTransitioning(false);
       transitioningRef.current = false;
     }, 260);
-    
+
     return () => {
       window.clearTimeout(t);
     };
@@ -1581,7 +1569,7 @@ function SegmentedGlobalProgressBar({ segments }: { segments: TrackSegment[] }) 
       </div>
 
       {/* Главный прогрессбар — сегменты + подсказка */}
-              <div className="player-progress-container is-auchan" ref={containerRef}>
+      <div className="player-progress-container is-auchan" ref={containerRef}>
         <div className="player-progress-track" />
 
         {/* Keyboard seek flash (+5/-5) */}
@@ -1929,17 +1917,13 @@ const DemoItem = memo(function DemoItem({ demo, index }: { demo: Demo; index: nu
 
 const MarqueeBanner = memo(function MarqueeBanner() {
   const text =
-    'LIL CYFRAL • МОЛОДОЙ • STREET RAP • GRUNGE • АНДЕГРАУНД • АШАН МОНСТР • ГОЛУБОЙ • НЕ ГОЛУБОЙ • ';
-
+    ' LIL CYFRAL • STREET RAP • GRUNGE • АНДЕГРАУНД • АШАН МОНСТР • LIL CYFRAL • STREET RAP • GRUNGE • АНДЕГРАУНД • АШАН МОНСТР • ';
   return (
     <div className="overflow-hidden py-4 border-y border-[#ff0033]/15 bg-[#ff0033]/[0.03]">
       <div className="marquee-track whitespace-nowrap" style={GRAFFITI}>
-        {/* Два одинаковых span — когда первый уезжает, второй занимает его место */}
-        <span className="marquee-content text-2xl md:text-3xl text-[#ff0033]/30 tracking-widest inline-block">
-          {text}{text}{text}{text}
-        </span>
-        <span className="marquee-content text-2xl md:text-3xl text-[#ff0033]/30 tracking-widest inline-block">
-          {text}{text}{text}{text}
+        <span className="text-2xl md:text-3xl text-[#ff0033]/30 tracking-widest">
+          {text}
+          {text}
         </span>
       </div>
     </div>
@@ -2353,7 +2337,7 @@ function AppContent({ scrollY }: { scrollY: number }) {
                 Lil<br />Cyfral
               </h1>
               <p className="text-lg sm:text-xl md:text-2xl text-gray-400 tracking-wider" style={GRAFFITI}>
-                🎤 RAP · GRUNGE · STREET
+                🇷🇺 RAP · GRUNGE · STREET
               </p>
               <div className="flex flex-wrap gap-4 justify-center md:justify-start pt-2">
                 <a href="#tracks" className="grunge-cta grunge-cta-red" style={GRAFFITI}>
@@ -2362,7 +2346,7 @@ function AppContent({ scrollY }: { scrollY: number }) {
                   <span className="grunge-cta-scratch grunge-cta-scratch-2" />
                 </a>
                 <a href="#demos" className="grunge-cta grunge-cta-green" style={GRAFFITI}>
-                  <span className="grunge-cta-text">💀 ДЕМКИ</span>
+                  <span className="grunge-cta-text">📼 ДЕМКИ</span>
                   <span className="grunge-cta-scratch" />
                 </a>
                 <a href="#podcast" className="grunge-cta grunge-cta-yellow" style={GRAFFITI}>
@@ -2428,7 +2412,7 @@ function AppContent({ scrollY }: { scrollY: number }) {
                   </h3>
                   <p className="text-gray-400 mt-2 leading-relaxed">
                     Эксклюзивный подкаст, в котором Lil Cyfral отвечает на вопросы о себе,
-                    своём творчестве и жизни на улицах. Узнай всё из первых уст! 🔊
+                    своём творчестве и жизни на улицах. Узнай всё из первых уст! 🎙️
                   </p>
                 </div>
               </div>
@@ -2463,7 +2447,7 @@ function AppContent({ scrollY }: { scrollY: number }) {
       <section id="demos" className="relative z-10 px-4 md:px-8 py-16 md:py-24">
         <div className="max-w-5xl mx-auto">
           <ScrollReveal>
-            <SectionTitle>💀 ДЕМКИ</SectionTitle>
+            <SectionTitle>📼 ДЕМКИ</SectionTitle>
             <p className="text-gray-500 -mt-6 mb-10 text-lg" style={GRAFFITI}>
               {DEMOS.length} треков из андеграунда. Неизданное, сырое, настоящее.
             </p>
@@ -2550,17 +2534,14 @@ function FullscreenPlayer() {
   const isGlitchCore = isPlaying && currentItem != null && GLITCH_CORE_NAMES.includes(currentItem.name);
 
   const segments = useTrackSegments(currentItem?.id || null);
-  
+
   // State for closing animation
   const [isClosing, setIsClosing] = useState(false);
-  
+
   // Drag-and-drop state for fullscreen queue
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
-
-
-  
   // Simple “kick” glow when playback starts / track changes
   const [glowKick, setGlowKick] = useState(false);
   useEffect(() => {
@@ -2581,7 +2562,7 @@ function FullscreenPlayer() {
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     seekTo(Number(e.target.value));
   };
-  
+
   // Handle close with animation
   const handleClose = () => {
     setIsClosing(true);
@@ -2638,7 +2619,7 @@ function FullscreenPlayer() {
           ) : (
             <div className="fullscreen-cover fullscreen-cover-placeholder">
               <span className="text-6xl">
-                {currentItem.type === 'podcast' ? '🎙️' : currentItem.type === 'demo' ? '💀' : '🔥'}
+                {currentItem.type === 'podcast' ? '🎙️' : currentItem.type === 'demo' ? '📼' : '🎵'}
               </span>
             </div>
           )}
@@ -2731,73 +2712,73 @@ function FullscreenPlayer() {
       {/* Queue panel (right side) */}
       <div className={`fullscreen-queue-panel ${showQueue ? 'is-open' : ''} ${isGlitchCore ? 'glitch-core-panel' : ''}`}>
         <div className="fullscreen-queue-header">
-            <span className="fullscreen-queue-title" style={GRAFFITI}>ОЧЕРЕДЬ</span>
-            <button onClick={() => setShowQueue(false)} className="fullscreen-queue-close">
-              <IconClose className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="fullscreen-queue-list">
-            {queue.map((item, i) => {
-              const isCurrent = i === currentQueueIndex;
-              const isPast = i < currentQueueIndex;
-              const canDrag = !isPast && !isCurrent;
-              const isDragging = draggedIdx === i;
-              const isDragOver = dragOverIdx === i && draggedIdx !== i;
-              
-              return (
-                <div
-                  key={item.id + '-fs-' + i}
-                  className={`fullscreen-queue-item ${isCurrent ? 'is-current' : ''} ${isPast ? 'is-past' : ''} ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'is-drag-over' : ''}`}
-                  draggable={canDrag}
-                  onDragStart={(e) => {
-                    if (!canDrag) return;
-                    setDraggedIdx(i);
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', String(i));
-                  }}
-                  onDragEnd={() => {
-                    setDraggedIdx(null);
-                    setDragOverIdx(null);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (draggedIdx !== null && i > currentQueueIndex && i !== draggedIdx) {
-                      setDragOverIdx(i);
-                    }
-                  }}
-                  onDragLeave={() => {
-                    if (dragOverIdx === i) setDragOverIdx(null);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (draggedIdx !== null && i > currentQueueIndex && draggedIdx !== i) {
-                      reorderQueue(draggedIdx, i);
-                    }
-                    setDraggedIdx(null);
-                    setDragOverIdx(null);
-                  }}
-                >
-                  {canDrag && (
-                    <span className="fullscreen-queue-drag" title="Перетащи">⋮⋮</span>
-                  )}
-                  <button
-                    onClick={() => playItemById(item.id)}
-                    className="fullscreen-queue-btn-play"
-                  >
-                    <span className="fullscreen-queue-num">{isCurrent ? '▶' : i + 1}</span>
-                    <span className="fullscreen-queue-name">{item.name}</span>
-                  </button>
-                  {canDrag && (
-                    <div className="fullscreen-queue-arrows">
-                      <button onClick={() => moveQueueItem(i, 'up')}>▲</button>
-                      <button onClick={() => moveQueueItem(i, 'down')}>▼</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <span className="fullscreen-queue-title" style={GRAFFITI}>ОЧЕРЕДЬ</span>
+          <button onClick={() => setShowQueue(false)} className="fullscreen-queue-close">
+            <IconClose className="w-4 h-4" />
+          </button>
         </div>
+        <div className="fullscreen-queue-list">
+          {queue.map((item, i) => {
+            const isCurrent = i === currentQueueIndex;
+            const isPast = i < currentQueueIndex;
+            const canDrag = !isPast && !isCurrent;
+            const isDragging = draggedIdx === i;
+            const isDragOver = dragOverIdx === i && draggedIdx !== i;
+
+            return (
+              <div
+                key={item.id + '-fs-' + i}
+                className={`fullscreen-queue-item ${isCurrent ? 'is-current' : ''} ${isPast ? 'is-past' : ''} ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'is-drag-over' : ''}`}
+                draggable={canDrag}
+                onDragStart={(e) => {
+                  if (!canDrag) return;
+                  setDraggedIdx(i);
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', String(i));
+                }}
+                onDragEnd={() => {
+                  setDraggedIdx(null);
+                  setDragOverIdx(null);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (draggedIdx !== null && i > currentQueueIndex && i !== draggedIdx) {
+                    setDragOverIdx(i);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (dragOverIdx === i) setDragOverIdx(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggedIdx !== null && i > currentQueueIndex && draggedIdx !== i) {
+                    reorderQueue(draggedIdx, i);
+                  }
+                  setDraggedIdx(null);
+                  setDragOverIdx(null);
+                }}
+              >
+                {canDrag && (
+                  <span className="fullscreen-queue-drag" title="Перетащи">⋮⋮</span>
+                )}
+                <button
+                  onClick={() => playItemById(item.id)}
+                  className="fullscreen-queue-btn-play"
+                >
+                  <span className="fullscreen-queue-num">{isCurrent ? '▶' : i + 1}</span>
+                  <span className="fullscreen-queue-name">{item.name}</span>
+                </button>
+                {canDrag && (
+                  <div className="fullscreen-queue-arrows">
+                    <button onClick={() => moveQueueItem(i, 'up')}>▲</button>
+                    <button onClick={() => moveQueueItem(i, 'down')}>▼</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
