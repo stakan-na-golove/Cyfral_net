@@ -1,0 +1,26 @@
+{
+  "name": "Lil Cyfral",
+  "short_name": "Lil Cyfral",
+  "description": "Официальный сайт реп-исполнителя Lil Cyfral — треки, демки, подкаст",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#ff0033",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "Cyfral-site/Cyfral-ava.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "Cyfral-site/Cyfral-ava.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["music", "entertainment"],
+  "lang": "ru"
+}

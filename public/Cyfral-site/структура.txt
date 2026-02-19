@@ -1,0 +1,86 @@
+—труктура папок
+—ерийный номер тома: 7AAC-36FB
+C:.
+¶   Cyfral-ava.jpg
+¶   Logo_sverhu.png
+¶   podcast.mp3
+¶   все названи€ цветов.txt
+¶   ссылки на платформы.txt
+¶   структура.txt
+¶   
++---logo_stream_services
+¶       Apple_Music__iOS__2020.png
+¶       Genius.png
+¶       icons8-€ндекс-музыка-новый-96.png
+¶       Icon_RUTUBE_dark_color.png
+¶       Spotify_Primary_Logo_RGB_Green.png
+¶       vk-music-sign-logo.png
+¶       YouTubeMusic_Logo.png
+¶       
++---демки
+¶       babos.mp3
+¶       BABY INTALENGENCE.mp3
+¶       BIG CYFRAL REP x KYFRALY frystail.mp3
+¶       CHASTYSHKI_4.mp3
+¶       COLOR GLITCH CORE cyfral.mp3
+¶       DEN HOUP DISS 1000000.mp3
+¶       DRIILL CYFRAL_2.mp3
+¶       DRILLOCHEK LIL CYFRAL.mp3
+¶       FINE PRINT LIL FRISTAIL.mp3
+¶       FINGER CYFRAL.mp3
+¶       FOTON 4.mp3
+¶       GLITCH CORE cyfral.mp3
+¶       GTA FREESTYLE.mp3
+¶       LESHA BISTRIK IDI NAXYI.mp3
+¶       LIL CYFRAL - DEFKA (REMIX by KORMAN ROTELNIKOV).mp3
+¶       LIL CYFRAL nakidal PIZDYLEY.mp3
+¶       LIL CYFRAL x REPER.mp3
+¶       lyryCAL.mp3
+¶       MAKS NAXYI CYFRAL.mp3
+¶       NIY CIFRALCHIK.mp3
+¶       SPISOK CYFLERRA.mp3
+¶       гриме.mp3
+¶       джерк кал.mp3
+¶       еииаеа.mp3
+¶       ‘»“ќ  ƒ≈ћ ј.mp3
+¶       чимичанга.mp3
+¶       
+L---“реки+обложки
+    +---Auchan
+    ¶       Auchan.mp3
+    ¶       јшан.jpg
+    ¶       тайминги.txt
+    ¶       
+    +---FL diss
+    ¶       FL_diss.jpg
+    ¶       LIL CYFRAL, RJK, ssinner31 Ч Fl Diss (feat. Shelby) (www.lightaudio.ru).mp3
+    ¶       тайминги.txt
+    ¶       
+    +---FL STUDIO DISS
+    ¶       FL STUDIO DISS.jpg
+    ¶       KOMERSS, RJK, Lil Cyfral, SSinner31 Ч FL STUDIO DISS (www.lightaudio.ru).mp3
+    ¶       тайминги.txt
+    ¶       
+    +---Lil Cyfral$i$
+    ¶       Lil Cyfral$i$.jpg
+    ¶       Lil Cyfral$i$.mp3
+    ¶       
+    +---MOLODES'H CYPHER 2
+    ¶       MOLODES'H CYPHER 2.jpg
+    ¶       »ѕ CHUGUN, Eletr, Hidji 17, LIL CYFRAL, проснулс€ счастливым, Shelby, Ione, Rouge_Frelon Ч MOLODES'H CYPHER 2 (www.lightaudio.ru).mp3
+    ¶       тайминги.txt
+    ¶       
+    +---јшан-монстры
+    ¶       lil cyfral, RJK Ч јшан-монстры (www.lightaudio.ru).mp3
+    ¶       јшан-монстры.jpg
+    ¶       тайминги.txt
+    ¶       
+    +---ƒерьмо
+    ¶       LIL CYFRAL, frogboi Ч ƒерьмо (www.lightaudio.ru).mp3
+    ¶       ƒерьмо.jpg
+    ¶       тайминги.txt
+    ¶       
+    L---Ћига јЎјЌного интернета
+            LIL CYFRAL Ч Ћига јЎјЌного интернета (www.lightaudio.ru).mp3
+            Ћига_јЎјЌного_интернета.png
+            
