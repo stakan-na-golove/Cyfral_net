@@ -244,6 +244,78 @@ const TRACK_FOLDER_MAP: Record<string, string> = {
 // Cache for loaded segments
 const segmentsCache: Record<string, TrackSegment[] | null> = {};
 const loadingPromises: Record<string, Promise<TrackSegment[] | null>> = {};
+// ─────────────────────────────────────────────────────────
+// DURATION CACHE (чтобы сегменты inline-прогрессбаров не "плыли"
+// и были правильными без клика по треку)
+// ─────────────────────────────────────────────────────────
+const durationCache: Record<string, number | null | undefined> = {};
+const durationLoading: Record<string, Promise<number | null>> = {};
+
+function loadItemDuration(itemId: string): Promise<number | null> {
+  if (durationCache[itemId] !== undefined) return Promise.resolve(durationCache[itemId] ?? null);
+  if (durationLoading[itemId]) return durationLoading[itemId];
+
+  const src = AUDIO_SRC_BY_ID[itemId];
+  if (!src) {
+    durationCache[itemId] = null;
+    return Promise.resolve(null);
+  }
+
+  durationLoading[itemId] = new Promise<number | null>((resolve) => {
+    const a = new Audio();
+    a.preload = 'metadata';
+    a.src = src;
+
+    let done = false;
+    const finish = (val: number | null) => {
+      if (done) return;
+      done = true;
+
+      durationCache[itemId] = val;
+      resolve(val);
+
+      delete durationLoading[itemId];
+      a.removeEventListener('loadedmetadata', onMeta);
+      a.removeEventListener('error', onErr);
+    };
+
+    const onMeta = () => {
+      const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : null;
+      finish(d);
+    };
+    const onErr = () => finish(null);
+
+    a.addEventListener('loadedmetadata', onMeta);
+    a.addEventListener('error', onErr);
+
+    // safety timeout — чтобы не зависло
+    window.setTimeout(() => finish(null), 12000);
+
+    a.load();
+  });
+
+  return durationLoading[itemId];
+}
+
+function useItemDuration(itemId: string | null): number | null {
+  const [dur, setDur] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!itemId) {
+      setDur(null);
+      return;
+    }
+
+    if (durationCache[itemId] !== undefined) {
+      setDur(durationCache[itemId] ?? null);
+      return;
+    }
+
+    loadItemDuration(itemId).then(setDur);
+  }, [itemId]);
+
+  return dur;
+}
 
 // Load segments from file (with caching)
 async function loadTrackSegments(trackId: string): Promise<TrackSegment[] | null> {
@@ -390,6 +462,9 @@ function buildPlaylist(): PlaylistItem[] {
 }
 
 const MASTER_PLAYLIST = buildPlaylist();
+const AUDIO_SRC_BY_ID: Record<string, string> = Object.fromEntries(
+  MASTER_PLAYLIST.map((i) => [i.id, i.audioSrc])
+);
 
 /* ════════════════════════════════════════════════════════
    UTILITIES
@@ -1658,10 +1733,14 @@ function InlinePlayer({ itemId, compact = false }: { itemId: string; compact?: b
 
   // For tracks with segments: keep the same inline progress shape as all others,
   // but paint segment colors in the background (no names/tooltips here).
-  const inlineSegments = useTrackSegments(itemId);
-  const inlineBg = inlineSegments
-    ? buildSegmentsGradient(inlineSegments, duration || 200, 0.16)
-    : undefined;
+const inlineSegments = useTrackSegments(itemId);
+const itemDuration = useItemDuration(itemId);
+
+// ВАЖНО: для сегментов используем ТОЛЬКО длительность самого трека из кеша,
+// чтобы при клике (когда duration плеера ещё "старый") ничего не прыгало.
+const inlineBg = inlineSegments
+  ? buildSegmentsGradient(inlineSegments, itemDuration ?? 0, 0.16)
+  : undefined;
 
   return (
     <div className="flex items-center gap-3 w-full">
@@ -2215,10 +2294,21 @@ function AppContent({ scrollY }: { scrollY: number }) {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
-      const isEditable = !!target && (target.isContentEditable || tag === 'input' || tag === 'textarea' || tag === 'select');
+      const isRangeInput =
+        tag === 'input' && (target as HTMLInputElement).type === 'range';
+
+      const isEditable = !!target && (
+        target.isContentEditable ||
+        (tag === 'input' && !isRangeInput) ||
+        tag === 'textarea' ||
+        tag === 'select'
+      );
       if (isEditable) return;
+      
 
       const key = (e.key || '').toLowerCase();
+      const isSpace =
+        e.code === 'Space' || key === ' ' || key === 'spacebar';
 
       // Fullscreen open: F (EN) / А (RU)
       if ((key === 'f' || key === 'а') && !isFullscreen) {
@@ -2238,13 +2328,11 @@ function AppContent({ scrollY }: { scrollY: number }) {
         return;
       }
 
-      // Play/Pause: Space (no page scroll)
-      if (key === ' ') {
-        if (currentItem) {
-          e.preventDefault();
-          e.stopPropagation();
-          togglePlay();
-        }
+      // Play/Pause: Space — ВСЕГДА блокируем скролл страницы
+      if (isSpace) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (currentItem) togglePlay();
         return;
       }
 
@@ -2538,6 +2626,27 @@ function FullscreenPlayer() {
   // State for closing animation
   const [isClosing, setIsClosing] = useState(false);
 
+  // Blur background is heavy; show it only after the opening animation starts
+  const [bgReady, setBgReady] = useState(false);
+
+  useEffect(() => {
+    if (!isFullscreen) {
+      setBgReady(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    // минимальная задержка, чтобы анимация начала идти плавно
+    const minDelay = window.setTimeout(() => {
+      if (!cancelled) setBgReady(true);
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(minDelay);
+    };
+  }, [isFullscreen, currentItem?.cover]);
   // Drag-and-drop state for fullscreen queue
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -2577,18 +2686,23 @@ function FullscreenPlayer() {
       className={`fullscreen-player ${isClosing ? 'is-closing' : ''} ${isPlaying ? 'is-playing' : 'is-paused'} ${glowKick ? 'glow-kick' : ''} ${isGlitchCore ? 'glitch-core-mode' : ''}`}
       style={{ ['--al' as any]: audioLevel } as React.CSSProperties}
     >
-      {/* Background with blur */}
+      {/* Background (blur is heavy, so we show it after opening starts) */}
       <div className="fullscreen-bg">
-        {currentItem.cover ? (
-          <img
-            src={currentItem.cover}
-            alt=""
-            className={`fullscreen-bg-img ${isGlitchCore ? 'glitch-core-img' : ''}`}
-          />
+        {bgReady ? (
+          currentItem.cover ? (
+            <img
+              src={currentItem.cover}
+              alt=""
+              className={`fullscreen-bg-img ${isGlitchCore ? 'glitch-core-img' : ''}`}
+            />
+          ) : (
+            <div className="fullscreen-bg-nocover" />
+          )
         ) : (
-          <div className="fullscreen-bg-nocover" />
+          <div className="fullscreen-bg-placeholder" />
         )}
-        <div className={`fullscreen-bg-overlay ${!currentItem.cover ? 'no-cover' : ''}`} />
+
+        <div className={`fullscreen-bg-overlay ${(!bgReady || !currentItem.cover) ? 'no-cover' : ''}`} />
       </div>
 
       {/* GLITCH CORE scanlines overlay */}
